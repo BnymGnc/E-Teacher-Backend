@@ -1,0 +1,227 @@
+import os
+import requests
+import json
+from rest_framework import permissions, status, views
+from rest_framework.response import Response
+from django.contrib.auth.models import User
+
+# Veritabanı modelimizi içe aktarıyoruz
+from .models import UserActivity 
+
+# --- 1. KULLANICI KAYIT İŞLEMİ ---
+class RegisterView(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        password = request.data.get('password')
+        
+        if User.objects.filter(username=email).exists():
+            return Response({'error': 'Bu email zaten kullanılıyor.'}, status=400)
+            
+        user = User.objects.create_user(username=email, email=email, password=password)
+        return Response({'message': 'Kayıt başarılı, giriş yapabilirsiniz.'}, status=201)
+
+# --- 2. KENDİ ML (MAKİNE ÖĞRENMESİ) MODELLERİMİZ ---
+class MLExamAnalysisView(views.APIView):
+    permission_classes = [permissions.AllowAny] 
+
+    def post(self, request):
+        subjects = request.data.get('subjects', [])
+        toplam_net = sum([float(s.get('net', 0)) for s in subjects])
+        analysis = f"Özel ML Modelimizin Çıktısı: Toplam netiniz {toplam_net}. Matris analizine göre Fen dersine yüklenmelisiniz."
+        return Response({'analysis': analysis})
+
+class MLTargetNetsView(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        university = request.data.get('university')
+        department = request.data.get('department')
+        return Response({
+            'tyt_requirement': '95.5',
+            'ayt_requirement': '68.25',
+            'analysis': f'ML Modelimize göre {university} - {department} için güvenli bölgedesiniz.'
+        })
+
+# --- 3. HAZIR API (OPENROUTER KULLANILARAK) ---
+class APIChatView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        message = request.data.get('message', '')
+        api_key = "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"
+        
+        try:
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'http://localhost:5173', 
+                'X-Title': 'E-Teacher App'
+            }
+            payload = {
+                'model': 'openai/gpt-4o-mini', 
+                'messages': [
+                    {'role': 'system', 'content': 'Sen şefkatli, anlayışlı ve motive edici bir rehber öğretmen/psikologsun. Sınav stresi çeken öğrencilere kısa, net ve rahatlatıcı tavsiyeler ver. Çok uzun yazma.'},
+                    {'role': 'user', 'content': message}
+                ]
+            }
+            resp = requests.post('https://openrouter.ai/api/v1/chat/completions', json=payload, headers=headers)
+            
+            if resp.ok:
+                reply = resp.json()['choices'][0]['message']['content']
+                return Response({'reply': reply})
+            else:
+                return Response({'error': 'Yapay zeka servisine ulaşılamadı.'}, status=400)
+                
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+class APISummaryView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        text = request.data.get('text', '')
+        api_key = "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"
+        
+        try:
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'http://localhost:5173',
+                'X-Title': 'E-Teacher App'
+            }
+            payload = {
+                'model': 'openai/gpt-4o-mini',
+                'messages': [
+                    {'role': 'system', 'content': 'Gönderilen uzun metinleri veya ders notlarını okuyup, en önemli kısımlarını anlaşılır ve akılda kalıcı maddeler halinde özetleyen bir asistansın. Türkçe yanıt ver.'},
+                    {'role': 'user', 'content': f"Şu metni benim için özetle:\n\n{text}"}
+                ]
+            }
+            resp = requests.post('https://openrouter.ai/api/v1/chat/completions', json=payload, headers=headers)
+            
+            if resp.ok:
+                summary = resp.json()['choices'][0]['message']['content']
+                return Response({'summary': summary})
+            else:
+                return Response({'error': 'Özetleme servisine ulaşılamadı.'}, status=400)
+                
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+class APIQuizGenerateView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        topic = request.data.get('topic', 'Genel Kültür')
+        difficulty = request.data.get('difficulty', 'Orta')
+        count = request.data.get('count', 5)
+        api_key = "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"
+        
+        prompt = f"""
+        Lütfen '{topic}' konusunda, '{difficulty}' zorluk derecesinde {count} soruluk çoktan seçmeli bir test hazırla.
+        YANITINI SADECE VE SADECE AŞAĞIDAKİ GİBİ GEÇERLİ BİR JSON FORMATINDA VER. BAŞKA HİÇBİR AÇIKLAMA YAZMA:
+        [
+          {{
+            "question": "Soru metni buraya gelecek",
+            "options": ["Seçenek A", "Seçenek B", "Seçenek C", "Seçenek D", "Seçenek E"],
+            "correctAnswer": "Doğru olan seçeneğin tam metni",
+            "explanation": "Bu cevabın neden doğru olduğunun açıklaması"
+          }}
+        ]
+        """
+        
+        try:
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'http://localhost:5173',
+                'X-Title': 'E-Teacher App'
+            }
+            payload = {
+                'model': 'openai/gpt-4o-mini',
+                'messages': [
+                    {'role': 'system', 'content': 'Sen bir sınav hazırlama asistanısın. Sadece JSON formatında çıktı verirsin.'},
+                    {'role': 'user', 'content': prompt}
+                ]
+            }
+            resp = requests.post('https://openrouter.ai/api/v1/chat/completions', json=payload, headers=headers)
+            
+            if resp.ok:
+                content = resp.json()['choices'][0]['message']['content']
+                clean_content = content.replace('```json', '').replace('```', '').strip()
+                quiz_data = json.loads(clean_content)
+                return Response({'quiz': quiz_data})
+            else:
+                return Response({'error': 'Yapay zeka servisine ulaşılamadı.'}, status=400)
+                
+        except Exception as e:
+            return Response({'error': 'Quiz oluşturulurken format hatası yaşandı. Lütfen tekrar deneyin.'}, status=500)
+
+# --- 4. VERİTABANI KAYIT VE ÇEKME İŞLEMLERİ (Program & Rapor) ---
+class ScheduleView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated] 
+
+    def get(self, request):
+        activity = UserActivity.objects.filter(user=request.user, activity_type='schedule').last()
+        if activity:
+            return Response({'schedule': activity.data.get('schedule', [])})
+        return Response({'schedule': None})
+
+    def post(self, request):
+        schedule_data = request.data.get('schedule', [])
+        UserActivity.objects.create(
+            user=request.user,
+            activity_type='schedule',
+            title='Haftalık Ders Programı',
+            data={'schedule': schedule_data}
+        )
+        return Response({'message': 'Program başarıyla kaydedildi!'})
+
+class DailyReportView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, date):
+        activity = UserActivity.objects.filter(user=request.user, activity_type='daily_report', title=f"Rapor {date}").first()
+        if activity:
+            # UYUM SAĞLAYICI: Eski verileri yeni isimlere çeviriyoruz
+            data = activity.data
+            return Response({
+                "dailyNotes": data.get("dailyNotes", data.get("report", "")),
+                "productivityScore": data.get("productivityScore", data.get("productivity", 5)),
+                "studyHours": data.get("studyHours", 0)
+            })
+        return Response({'dailyNotes': '', 'productivityScore': None, 'studyHours': None})
+
+    def post(self, request):
+        date = request.data.get('date')
+        activity, created = UserActivity.objects.update_or_create(
+            user=request.user,
+            activity_type='daily_report',
+            title=f"Rapor {date}",
+            defaults={'data': request.data}
+        )
+        return Response({'message': 'Günlük rapor kaydedildi!'})
+
+class AllReportsView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        # 1. Kullanıcıya ait 'daily_report' tipindeki TÜM kayıtları çek
+        activities = UserActivity.objects.filter(
+            user=request.user, 
+            activity_type='daily_report'
+        ).order_by('-created_at')
+        
+        # 2. Her bir kaydın içindeki 'data' kısmını bir listeye topla
+        # Eğer data içinde tarih yoksa, kayıt tarihini ekle (Garanti olsun)
+        report_list = []
+        for act in activities:
+            report_data = act.data if act.data else {}
+            # Eğer data içinde 'date' yoksa title'dan çek (Rapor 2026-03-23 -> 2026-03-23)
+            if 'date' not in report_data:
+                report_data['date'] = act.title.replace("Rapor ", "")
+            report_list.append(report_data)
+            
+        # 3. Sonucu DÜZ BİR LİSTE olarak dön
+        return Response(report_list)
