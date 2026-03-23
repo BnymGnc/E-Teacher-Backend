@@ -1,13 +1,14 @@
 import os
 from pathlib import Path
 from datetime import timedelta
-import dj_database_url 
+import dj_database_url
+
 # Proje dizin yolları
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# --- GÜVENLİK AYARLARI (Hatayı çözen kısım) ---
-SECRET_KEY = 'django-insecure-e-teacher-gelistirme-anahtari-12345'
-DEBUG = True
+# --- GÜVENLİK AYARLARI ---
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-e-teacher-gelistirme-anahtari-12345')
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = ['*']
 
 # --- UYGULAMALAR ---
@@ -24,12 +25,14 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
     'api',
+    'whitenoise.runserver_nostatic', # Statik dosyalar için eklendi
 ]
 
-# --- MIDDLEWARE (CORS En Üstte) ---
+# --- MIDDLEWARE (Sıralama Önemlidir) ---
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # Statik dosya yönetimi için eklendi
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -58,8 +61,12 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core.wsgi.application'
 
 # --- VERİTABANI ---
+# Render'da DATABASE_URL varsa onu kullanır, yoksa senin Neon linkini kullanır
 DATABASES = {
-    'default': dj_database_url.parse('postgresql://neondb_owner:npg_Ww5zUK1TFaXh@ep-restless-math-an3zdlr6-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require')
+    'default': dj_database_url.config(
+        default='postgresql://neondb_owner:npg_Ww5zUK1TFaXh@ep-restless-math-an3zdlr6-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require',
+        conn_max_age=600
+    )
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -74,7 +81,13 @@ LANGUAGE_CODE = 'tr-tr'
 TIME_ZONE = 'Europe/Istanbul'
 USE_I18N = True
 USE_TZ = True
+
+# --- STATİK DOSYA AYARLARI (RENDER HATASINI ÇÖZEN KISIM) ---
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# Statik dosyaların sıkıştırılması için (Whitenoise)
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- BİZİM REACT VE JWT AYARLARIMIZ ---
