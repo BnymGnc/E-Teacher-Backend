@@ -8,16 +8,16 @@ urlpatterns = [
     path('auth/login/', TokenObtainPairView.as_view(), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='refresh'),
     
-    # ML & AI
+    # ML & AI (Buradaki 'api/' takıları silindi çünkü ana urls.py zaten 'api/' ekliyor)
     path('ml/exam-analysis/', views.MLExamAnalysisView.as_view(), name='ml_exam_analysis'),
     path('ml/target-nets/', views.MLTargetNetsView.as_view(), name='ml_target_nets'),
-    path('api/chat/', views.APIChatView.as_view(), name='api_chat'),
-    path('api/summarize/', views.APISummaryView.as_view(), name='api_summary'),
-    path('api/quiz-generate/', views.APIQuizGenerateView.as_view(), name='api_quiz_generate'),
+    path('chat/', views.APIChatView.as_view(), name='api_chat'),
+    path('summarize/', views.APISummaryView.as_view(), name='api_summary'),
+    path('quiz-generate/', views.APIQuizGenerateView.as_view(), name='api_quiz_generate'),
 
-    # Veritabanı (SIRALAMA DÜZELTİLDİ)
+    # Veritabanı
     path('schedule/', views.ScheduleView.as_view(), name='schedule'),
-    path('report/all/', views.AllReportsView.as_view(), name='report_all'), # ALL ÜSTE GELDİ
+    path('report/all/', views.AllReportsView.as_view(), name='report_all'),
     path('report/', views.DailyReportView.as_view(), name='report_base'),
     path('report/<str:date>/', views.DailyReportView.as_view(), name='report_date'),
 ]
