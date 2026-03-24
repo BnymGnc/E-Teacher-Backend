@@ -55,7 +55,8 @@ class APIChatView(views.APIView):
         if not message:
             return Response({'error': 'Mesaj içeriği boş olamaz.'}, status=400)
 
-        api_key = "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"
+        # GÜVENLİK GÜNCELLEMESİ: Şifreyi Render'dan (Environment Variables) çekiyoruz
+        api_key = os.environ.get('OPENROUTER_API_KEY')
         
         try:
             headers = {
@@ -87,7 +88,9 @@ class APISummaryView(views.APIView):
 
     def post(self, request):
         text = request.data.get('text', '')
-        api_key = "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"
+        
+        # GÜVENLİK GÜNCELLEMESİ
+        api_key = os.environ.get('OPENROUTER_API_KEY')
         
         try:
             headers = {
@@ -121,7 +124,9 @@ class APIQuizGenerateView(views.APIView):
         topic = request.data.get('topic', 'Genel Kültür')
         difficulty = request.data.get('difficulty', 'Orta')
         count = request.data.get('count', 5)
-        api_key = "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"
+        
+        # GÜVENLİK GÜNCELLEMESİ
+        api_key = os.environ.get('OPENROUTER_API_KEY')
         
         prompt = f"""
         Lütfen '{topic}' konusunda, '{difficulty}' zorluk derecesinde {count} soruluk çoktan seçmeli bir test hazırla.
