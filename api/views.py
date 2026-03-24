@@ -200,25 +200,34 @@ class APIQuizGenerateView(views.APIView):
         except Exception as e:
             return Response({'error': 'Quiz oluşturulurken format hatası yaşandı. Lütfen tekrar deneyin.'}, status=500)
 
-# --- 4. VERİTABANI KAYIT VE ÇEKME İŞLEMLERİ (Program & Rapor) ---
 class ScheduleView(views.APIView):
     permission_classes = [permissions.IsAuthenticated] 
 
     def get(self, request):
-        activity = UserActivity.objects.filter(user=request.user, activity_type='schedule').last()
+        # DÜZELTME: Sadece giriş yapmış kullanıcıya (user=request.user) ait olan son programı getir
+        activity = UserActivity.objects.filter(
+            user=request.user, 
+            activity_type='schedule'
+        ).order_by('-created_at').first() 
+        
         if activity:
             return Response({'schedule': activity.data.get('schedule', [])})
         return Response({'schedule': None})
 
     def post(self, request):
         schedule_data = request.data.get('schedule', [])
-        UserActivity.objects.create(
+        
+        # DÜZELTME: update_or_create kullanarak her kullanıcının sadece 1 tane programı olmasını sağla
+        # Böylece her kayıtta yeni satır eklemek yerine var olanı günceller (Veritabanı şişmez)
+        activity, created = UserActivity.objects.update_or_create(
             user=request.user,
             activity_type='schedule',
-            title='Haftalık Ders Programı',
-            data={'schedule': schedule_data}
+            defaults={
+                'title': 'Haftalık Ders Programı',
+                'data': {'schedule': schedule_data}
+            }
         )
-        return Response({'message': 'Program başarıyla kaydedildi!'})
+        return Response({'message': 'Programın başarıyla kaydedildi!'})
 
 class DailyReportView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
