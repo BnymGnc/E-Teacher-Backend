@@ -50,6 +50,11 @@ class APIChatView(views.APIView):
 
     def post(self, request):
         message = request.data.get('message', '')
+        
+        # EKLENEN KISIM: Eğer Frontend'den mesaj gelmezse veya boş gelirse 400 hatasını netleştiriyoruz
+        if not message:
+            return Response({'error': 'Mesaj içeriği boş olamaz.'}, status=400)
+
         api_key = "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"
         
         try:
@@ -72,7 +77,7 @@ class APIChatView(views.APIView):
                 reply = resp.json()['choices'][0]['message']['content']
                 return Response({'reply': reply})
             else:
-                return Response({'error': 'Yapay zeka servisine ulaşılamadı.'}, status=400)
+                return Response({'error': f'Yapay zeka servisine ulaşılamadı. Hata Kodu: {resp.status_code}'}, status=400)
                 
         except Exception as e:
             return Response({'error': str(e)}, status=500)
