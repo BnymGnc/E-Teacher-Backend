@@ -8,33 +8,7 @@ from django.contrib.auth.models import User
 # Veritabanı modelimizi içe aktarıyoruz
 from .models import UserActivity 
 
-class UserProfileView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
 
-    # Bilgileri Getir (GET)
-    def get(self, request):
-        user = request.user
-        return Response({
-            'username': user.username,
-            'email': user.email
-        })
-
-    # Bilgileri Güncelle (PUT)
-    def put(self, request):
-        user = request.user
-        new_username = request.data.get('username')
-        new_password = request.data.get('password')
-
-        if new_username:
-            user.username = new_username
-        
-        # Eğer yeni şifre yazılmışsa, güvenli bir şekilde şifrele ve kaydet
-        if new_password:
-            user.set_password(new_password)
-            
-        user.save()
-        return Response({'message': 'Profil başarıyla güncellendi.'}, status=200)
-    
 # --- 1. KULLANICI KAYIT İŞLEMİ ---
 class RegisterView(views.APIView):
     permission_classes = [permissions.AllowAny]
