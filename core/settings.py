@@ -28,14 +28,14 @@ INSTALLED_APPS = [
     'whitenoise.runserver_nostatic', # Statik dosyalar için eklendi
 ]
 
-# --- MIDDLEWARE (Sıralama Önemlidir) ---
+
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware', # İŞTE SİHİRLİ DOKUNUŞ: BUNU EN ÜSTE ALDIK!
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # Statik dosya yönetimi için eklendi
-    'corsheaders.middleware.CorsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',s
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
