@@ -20,4 +20,5 @@ urlpatterns = [
     path('report/all/', views.AllReportsView.as_view(), name='report_all'),
     path('report/', views.DailyReportView.as_view(), name='report_base'),
     path('report/<str:date>/', views.DailyReportView.as_view(), name='report_date'),
+    path('auth/profile/', UserProfileView.as_view(), name='profile'),
 ]
