@@ -5,6 +5,37 @@ from rest_framework import permissions, status, views
 from rest_framework.response import Response
 from django.contrib.auth.models import User
 
+# api/views.py dosyasının EN ALTINA ekle
+
+class UserProfileView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    # Profil bilgilerini getir (E-posta ve kullanıcı adı)
+    def get(self, request):
+        user = request.user
+        return Response({
+            'username': user.username,
+            'email': user.email
+        })
+
+    # Profil bilgilerini güncelle (E-posta/Kullanıcı adı ve şifre)
+    def put(self, request):
+        user = request.user
+        new_username = request.data.get('username')
+        new_password = request.data.get('password')
+
+        # Kullanıcı adı veya e-posta değişirse (ikisi sende aynı şey)
+        if new_username:
+            user.username = new_username
+            user.email = new_username
+        
+        # Yeni şifre girilmişse güvenli bir şekilde şifrele
+        if new_password and new_password.strip() != "":
+            user.set_password(new_password)
+            
+        user.save()
+        return Response({'message': 'Profil başarıyla güncellendi.'}, status=status.HTTP_200_OK)
+    
 # Veritabanı modelimizi içe aktarıyoruz
 from .models import UserActivity 
 
