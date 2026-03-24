@@ -7,8 +7,9 @@ urlpatterns = [
     path('auth/register/', views.RegisterView.as_view(), name='register'),
     path('auth/login/', TokenObtainPairView.as_view(), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='refresh'),
+    path('auth/profile/', views.UserProfileView.as_view(), name='profile'), # DÜZELTİLEN SATIR BURASI (views. eklendi)
     
-    # ML & AI (Buradaki 'api/' takıları silindi çünkü ana urls.py zaten 'api/' ekliyor)
+    # ML & AI 
     path('ml/exam-analysis/', views.MLExamAnalysisView.as_view(), name='ml_exam_analysis'),
     path('ml/target-nets/', views.MLTargetNetsView.as_view(), name='ml_target_nets'),
     path('chat/', views.APIChatView.as_view(), name='api_chat'),
@@ -20,5 +21,4 @@ urlpatterns = [
     path('report/all/', views.AllReportsView.as_view(), name='report_all'),
     path('report/', views.DailyReportView.as_view(), name='report_base'),
     path('report/<str:date>/', views.DailyReportView.as_view(), name='report_date'),
-    path('auth/profile/', UserProfileView.as_view(), name='profile'),
 ]
