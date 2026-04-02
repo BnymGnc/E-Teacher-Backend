@@ -22,5 +22,5 @@ urlpatterns = [
     path('report/', views.DailyReportView.as_view(), name='report_base'),
     path('report/<str:date>/', views.DailyReportView.as_view(), name='report_date'),
 
-    path('api/summarize-file/', views.APIFileSummaryView.as_view(), name='summarize-file'),
+    path('summarize-file/', views.APIFileSummaryView.as_view(), name='summarize-file'),
 ]

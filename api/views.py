@@ -310,6 +310,7 @@ class AllReportsView(views.APIView):
 
 
 # --- 6. PDF DOSYA YÜKLEME VE ÖZETLEME ---
+@method_decorator(csrf_exempt, name='dispatch')
 class APIFileSummaryView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormDataParser] # Dosya kabul etmek için
