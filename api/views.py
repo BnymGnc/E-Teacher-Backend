@@ -6,6 +6,8 @@ from rest_framework import permissions, status, views
 from rest_framework.response import Response
 from django.contrib.auth.models import User
 from .models import UserActivity, UserProfile
+import fitz  # PyMuPDF (PDF okumak için)
+from rest_framework.parsers import MultiPartParser, FormDataParser
 
 # --- 1. KULLANICI PROFİLİ VE KOTA (Görüntüleme / Güncelleme) ---
 class UserProfileView(views.APIView):
@@ -305,3 +307,61 @@ class AllReportsView(views.APIView):
             report_list.append(report_data)
             
         return Response(report_list)
+
+
+# --- 6. PDF DOSYA YÜKLEME VE ÖZETLEME ---
+class APIFileSummaryView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormDataParser] # Dosya kabul etmek için
+
+    def post(self, request):
+        profile = getattr(request.user, 'profile', None)
+        if profile and profile.ai_credits <= 0:
+            return Response({'error': 'Yapay zeka kullanım kotanız dolmuştur.'}, status=403)
+
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({'error': 'Lütfen bir dosya yükleyin.'}, status=400)
+
+        # PDF İçeriğini Metne Çevirme
+        text = ""
+        try:
+            if file_obj.name.endswith('.pdf'):
+                doc = fitz.open(stream=file_obj.read(), filetype="pdf")
+                for page in doc:
+                    text += page.get_text()
+            else:
+                text = file_obj.read().decode('utf-8')
+        except Exception as e:
+            return Response({'error': 'Dosya okunamadı: ' + str(e)}, status=400)
+
+        if len(text.strip()) < 10:
+            return Response({'error': 'Dosya içeriği çok kısa veya metin bulunamadı.'}, status=400)
+
+        # Mevcut AI Özetleme Mantığını Çağırıyoruz (Kod tekrarı yapmamak için senin sistemin)
+        api_key = os.environ.get('OPENROUTER_API_KEY')
+        try:
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json',
+                'X-Title': 'E-Teacher App'
+            }
+            payload = {
+                'model': 'openai/gpt-4o-mini',
+                'messages': [
+                    {'role': 'system', 'content': 'Sen bir ders asistanısın. Yüklenen PDF içeriğini en önemli başlıklarla özetle.'},
+                    {'role': 'user', 'content': f"Şu PDF içeriğini özetle:\n\n{text[:10000]}"} # Çok uzunsa ilk 10k karakter
+                ]
+            }
+            resp = requests.post('https://openrouter.ai/api/v1/chat/completions', json=payload, headers=headers)
+            
+            if resp.ok:
+                if profile:
+                    profile.ai_credits -= 1
+                    profile.save()
+                summary = resp.json()['choices'][0]['message']['content']
+                return Response({'summary': summary})
+            else:
+                return Response({'error': 'AI servisi yanıt vermedi.'}, status=400)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
