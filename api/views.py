@@ -381,14 +381,16 @@ def get_google_flow():
             "client_secret": os.environ.get('GOOGLE_CLIENT_SECRET'),
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
-            # Render adresimiz
             "redirect_uris": ["https://e-teacher.onrender.com/api/google/callback/"],
         }
     }
     
+    # DÜZELTME BURADA: Flow nesnesini oluştururken redirect_uri'yi de içeri veriyoruz.
     flow = Flow.from_client_config(
         client_config,
-        scopes=['https://www.googleapis.com/auth/calendar.events']
+        scopes=['https://www.googleapis.com/auth/calendar.events'],
+        # BU SATIRI EKLEDİK:
+        redirect_uri="https://e-teacher.onrender.com/api/google/callback/"
     )
     return flow
 
