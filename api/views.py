@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from django.contrib.auth.models import User
 from .models import UserActivity, UserProfile
 import fitz  # PyMuPDF (PDF okumak için)
-from rest_framework.parsers import MultiPartParser, FormDataParser
+from rest_framework.parsers import MultiPartParser, FormParser
 
 # --- 1. KULLANICI PROFİLİ VE KOTA (Görüntüleme / Güncelleme) ---
 class UserProfileView(views.APIView):
@@ -313,7 +313,7 @@ class AllReportsView(views.APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class APIFileSummaryView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser, FormDataParser] # Dosya kabul etmek için
+    parser_classes = [MultiPartParser, FormParser] # Dosya kabul etmek için
 
     def post(self, request):
         profile = getattr(request.user, 'profile', None)
