@@ -8,6 +8,8 @@ from django.contrib.auth.models import User
 from .models import UserActivity, UserProfile
 import fitz  # PyMuPDF (PDF okumak için)
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.utils.decorators import method_decorator   # EKLENEN SATIR
+from django.views.decorators.csrf import csrf_exempt   # EKLENEN SATIR
 
 # --- 1. KULLANICI PROFİLİ VE KOTA (Görüntüleme / Güncelleme) ---
 class UserProfileView(views.APIView):
