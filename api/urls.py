@@ -23,4 +23,7 @@ urlpatterns = [
     path('report/<str:date>/', views.DailyReportView.as_view(), name='report_date'),
 
     path('summarize-file/', views.APIFileSummaryView.as_view(), name='summarize-file'),
+
+    path('calendar/auth/', views.GoogleCalendarInitView.as_view(), name='calendar_auth'),
+    path('google/callback/', views.GoogleCalendarCallbackView.as_view(), name='google_callback'),
 ]

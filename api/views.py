@@ -10,6 +10,8 @@ import fitz  # PyMuPDF (PDF okumak için)
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.utils.decorators import method_decorator   # EKLENEN SATIR
 from django.views.decorators.csrf import csrf_exempt   # EKLENEN SATIR
+from google_auth_oauthlib.flow import Flow
+from django.shortcuts import redirect
 
 # --- 1. KULLANICI PROFİLİ VE KOTA (Görüntüleme / Güncelleme) ---
 class UserProfileView(views.APIView):
@@ -368,3 +370,63 @@ class APIFileSummaryView(views.APIView):
                 return Response({'error': 'AI servisi yanıt vermedi.'}, status=400)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+
+# --- 7. GOOGLE TAKVİM ENTEGRASYONU ---
+
+def get_google_flow():
+    client_config = {
+        "web": {
+            "client_id": os.environ.get('GOOGLE_CLIENT_ID'),
+            "client_secret": os.environ.get('GOOGLE_CLIENT_SECRET'),
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            # Render adresimiz
+            "redirect_uris": ["https://e-teacher.onrender.com/api/google/callback/"],
+        }
+    }
+    
+    flow = Flow.from_client_config(
+        client_config,
+        scopes=['https://www.googleapis.com/auth/calendar.events']
+    )
+    return flow
+
+class GoogleCalendarInitView(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        flow = get_google_flow()
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            prompt='consent'
+        )
+        return Response({'auth_url': authorization_url})
+
+# EKSİK OLAN VE EKLENEN KISIM:
+class GoogleCalendarCallbackView(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        code = request.GET.get('code')
+        error = request.GET.get('error')
+
+        if error:
+            return Response({'error': 'Google yetkilendirmesi reddedildi.'}, status=400)
+
+        if not code:
+            return Response({'error': 'Yetki kodu bulunamadı.'}, status=400)
+
+        try:
+            flow = get_google_flow()
+            flow.fetch_token(code=code)
+            credentials = flow.credentials
+            
+            return Response({
+                'message': 'Harika! Google Takvim yetkisi başarıyla alındı.',
+                'token': credentials.token,
+            })
+            
+        except Exception as e:
+            return Response({'error': f'Token alınırken hata: {str(e)}'}, status=500)
