@@ -15,6 +15,9 @@ from django.shortcuts import redirect
 from rest_framework.permissions import IsAuthenticated
 from .models import GoogleCalendarCredential
 from rest_framework.permissions import IsAdminUser
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
+import uuid
 
 # --- ADMİN KOTA VE KULLANICI YÖNETİMİ ---
 
@@ -553,3 +556,68 @@ class GoogleCalendarCallbackView(views.APIView):
             
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+# --- 8. GOOGLE MEET VE DERS OLUŞTURMA ---
+
+class CreateLessonEventView(views.APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        
+        try:
+            # 1. Kullanıcının veritabanındaki Google anahtarlarını alıyoruz
+            creds_data = user.calendar_credential
+            
+            # 2. Google'ın anlayacağı 'Credentials' nesnesini hazırlıyoruz
+            credentials = Credentials(
+                token=creds_data.token,
+                refresh_token=creds_data.refresh_token,
+                token_uri=creds_data.token_uri,
+                client_id=creds_data.client_id,
+                client_secret=creds_data.client_secret,
+                scopes=creds_data.scopes.split(',')
+            )
+
+            # 3. Google Takvim API'sine bağlanıyoruz
+            service = build('calendar', 'v3', credentials=credentials)
+
+            # 4. Takvime eklenecek "Ders" detayları
+            # İleride bu tarih ve saatleri React'ten (request.data'dan) alacağız
+            event_details = {
+                'summary': 'E-Teacher Canlı Etüt',
+                'description': 'E-Teacher platformu üzerinden otomatik oluşturulmuş ders.',
+                'start': {
+                    'dateTime': '2026-04-10T10:00:00+03:00', # Örnek Tarih
+                    'timeZone': 'Europe/Istanbul',
+                },
+                'end': {
+                    'dateTime': '2026-04-10T11:00:00+03:00', # 1 Saatlik Ders
+                    'timeZone': 'Europe/Istanbul',
+                },
+                # İŞTE SİHİRLİ KISIM: Otomatik Google Meet Linki Üretme
+                'conferenceData': {
+                    'createRequest': {
+                        'requestId': str(uuid.uuid4()), # Çakışmayı önlemek için benzersiz ID
+                        'conferenceSolutionKey': {'type': 'hangoutsMeet'}
+                    }
+                }
+            }
+
+            # 5. Etkinliği Google'a fırlatıyoruz!
+            event = service.events().insert(
+                calendarId='primary',
+                body=event_details,
+                conferenceDataVersion=1 # Bu ayar Meet linki üretilmesi için ŞARTTIR
+            ).execute()
+
+            return Response({
+                'message': 'Harika! Ders takvime başarıyla eklendi!',
+                'meet_link': event.get('hangoutLink'),
+                'event_link': event.get('htmlLink')
+            })
+
+        except GoogleCalendarCredential.DoesNotExist:
+            return Response({'error': 'Takvim bağlı değil. Lütfen önce Google Takviminizi bağlayın.'}, status=400)
+        except Exception as e:
+            return Response({'error': f'Takvim etkinliği oluşturulamadı: {str(e)}'}, status=500)        
