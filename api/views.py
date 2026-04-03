@@ -14,7 +14,100 @@ from google_auth_oauthlib.flow import Flow
 from django.shortcuts import redirect
 from rest_framework.permissions import IsAuthenticated
 from .models import GoogleCalendarCredential
+from rest_framework.permissions import IsAdminUser
 
+# --- ADMİN KOTA VE KULLANICI YÖNETİMİ ---
+
+class AdminUserListView(views.APIView):
+    """Tüm kullanıcıları ve mevcut kredilerini listeler"""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        from django.contrib.auth.models import User
+        users = User.objects.all()
+        user_list = []
+        for user in users:
+            # Profil varsa krediyi al, yoksa 0 de
+            credits = user.profile.ai_credits if hasattr(user, 'profile') else 0
+            user_list.append({
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'ai_credits': credits,
+                'is_staff': user.is_staff
+            })
+        return Response(user_list)
+
+class AdminUpdateQuotaView(views.APIView):
+    """Belirli bir kullanıcının kotasını günceller"""
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        new_credits = request.data.get('ai_credits')
+
+        try:
+            from django.contrib.auth.models import User
+            target_user = User.objects.get(id=user_id)
+            
+            # Kullanıcının profili varsa güncelle, yoksa oluştur
+            profile, created = UserProfile.objects.get_or_create(user=target_user)
+            profile.ai_credits = new_credits
+            profile.save()
+
+            return Response({
+                'message': f'{target_user.username} için yeni kredi sınırı: {new_credits}'
+            })
+        except User.DoesNotExist:
+            return Response({'error': 'Kullanıcı bulunamadı.'}, status=404)
+
+# --- ADMİN KULLANICI VE PREMİUM YÖNETİMİ ---
+
+class AdminUserManagementView(views.APIView):
+    """Tüm kullanıcıları listeler ve premium/kota durumlarını yönetir"""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        from django.contrib.auth.models import User
+        users = User.objects.all()
+        user_list = []
+        for user in users:
+            # Profil verilerini çekiyoruz
+            profile = getattr(user, 'profile', None)
+            user_list.append({
+                'id': user.id,
+                'username': user.username,
+                'ai_credits': profile.ai_credits if profile else 0,
+                'is_premium': profile.is_premium if profile else False,
+                'is_staff': user.is_staff
+            })
+        return Response(user_list)
+
+    def post(self, request):
+        """Kullanıcının premium durumunu veya kredisini günceller"""
+        user_id = request.data.get('user_id')
+        new_credits = request.data.get('ai_credits')
+        set_premium = request.data.get('is_premium') # True veya False gelir
+
+        try:
+            target_user = User.objects.get(id=user_id)
+            profile, created = UserProfile.objects.get_or_create(user=target_user)
+            
+            if new_credits is not None:
+                profile.ai_credits = new_credits
+            
+            if set_premium is not None:
+                profile.is_premium = set_premium
+                
+            profile.save()
+
+            return Response({
+                'message': f'{target_user.username} başarıyla güncellendi.',
+                'is_premium': profile.is_premium,
+                'current_credits': profile.ai_credits
+            })
+        except User.DoesNotExist:
+            return Response({'error': 'Kullanıcı bulunamadı.'}, status=404)
 
 # --- 1. KULLANICI PROFİLİ VE KOTA (Görüntüleme / Güncelleme) ---
 class UserProfileView(views.APIView):

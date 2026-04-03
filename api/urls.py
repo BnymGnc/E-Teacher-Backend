@@ -26,4 +26,9 @@ urlpatterns = [
 
     path('calendar/auth/', views.GoogleCalendarInitView.as_view(), name='calendar_auth'),
     path('google/callback/', views.GoogleCalendarCallbackView.as_view(), name='google_callback'),
+
+    # Admin Paneli Linkleri
+    path('admin/users/', views.AdminUserListView.as_view(), name='admin-user-list'),
+    path('admin/update-quota/', views.AdminUpdateQuotaView.as_view(), name='admin-update-quota'),
+    path('admin/manage-users/', views.AdminUserManagementView.as_view(), name='admin-manage-users'),
 ]
