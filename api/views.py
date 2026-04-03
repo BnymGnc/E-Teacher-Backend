@@ -425,6 +425,10 @@ class GoogleCalendarCallbackView(views.APIView):
 
         try:
             flow = get_google_flow()
+            
+            # BURASI KRİTİK: fetch_token'dan hemen ÖNCE code_verifier'ı tekrar sıfırlıyoruz
+            flow.code_verifier = None 
+            
             flow.fetch_token(code=code)
             credentials = flow.credentials
             
