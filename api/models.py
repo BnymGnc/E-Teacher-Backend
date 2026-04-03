@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.conf import settings
 
 # --- 1. KULLANICI PROFİLİ VE KOTA SİSTEMİ ---
 class UserProfile(models.Model):
@@ -21,3 +22,15 @@ class UserActivity(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.activity_type}"
+    
+class GoogleCalendarCredential(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='calendar_credential')
+    token = models.TextField()
+    refresh_token = models.TextField(null=True, blank=True)
+    token_uri = models.CharField(max_length=255)
+    client_id = models.CharField(max_length=255)
+    client_secret = models.CharField(max_length=255)
+    scopes = models.TextField()
+
+    def __str__(self):
+        return f"{self.user.username} - Google Calendar"    

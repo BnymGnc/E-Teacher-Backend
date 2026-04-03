@@ -12,6 +12,8 @@ from django.utils.decorators import method_decorator   # EKLENEN SATIR
 from django.views.decorators.csrf import csrf_exempt   # EKLENEN SATIR
 from google_auth_oauthlib.flow import Flow
 from django.shortcuts import redirect
+from rest_framework.permissions import IsAuthenticated
+from .models import GoogleCalendarCredential
 
 
 # --- 1. KULLANICI PROFİLİ VE KOTA (Görüntüleme / Güncelleme) ---
@@ -376,6 +378,8 @@ class APIFileSummaryView(views.APIView):
 
 # --- 7. GOOGLE TAKVİM ENTEGRASYONU ---
 
+# --- 7. GOOGLE TAKVİM ENTEGRASYONU ---
+
 def get_google_flow():
     client_config = {
         "web": {
@@ -396,22 +400,20 @@ def get_google_flow():
     return flow
 
 class GoogleCalendarInitView(views.APIView):
-    permission_classes = [permissions.AllowAny]
+    # Sadece giriş yapmış kullanıcılar takvim bağlayabilsin
+    permission_classes = [IsAuthenticated] 
 
     def get(self, request):
         flow = get_google_flow()
-        
-        # Google'a gitmeden önce linki oluşturuyoruz.
-        # Bu işlem sırasında flow nesnesi güvenliğimiz için otomatik bir "code_verifier" üretir.
         authorization_url, state = flow.authorization_url(
             access_type='offline',
             include_granted_scopes='true',
             prompt='consent'
         )
         
-        # KRİTİK ADIM: Üretilen bu şifreyi kullanıcının oturumuna (session) kaydediyoruz.
-        # Böylece Google'dan geri döndüğünde bu anahtarı çekip kullanabileceğiz.
+        # Session'a code_verifier'ın yanına kullanıcının ID'sini de ekliyoruz
         request.session['code_verifier'] = flow.code_verifier
+        request.session['calendar_user_id'] = request.user.id
         
         return Response({'auth_url': authorization_url})
 
@@ -422,33 +424,39 @@ class GoogleCalendarCallbackView(views.APIView):
         code = request.GET.get('code')
         error = request.GET.get('error')
 
-        if error:
-            return Response({'error': 'Google yetkilendirmesi reddedildi.'}, status=400)
+        if error or not code:
+            return Response({'error': 'Yetkilendirme hatası.'}, status=400)
 
-        if not code:
-            return Response({'error': 'Yetki kodu bulunamadı.'}, status=400)
-
-        # 1. ADIM: Session'a kaydettiğimiz o gizli anahtarı geri çağırıyoruz.
         code_verifier = request.session.get('code_verifier')
+        user_id = request.session.get('calendar_user_id') # Hangi kullanıcıydı?
 
-        # Eğer oturum silinmişse veya anahtar yoksa kullanıcıyı uyarıyoruz.
-        if not code_verifier:
-            return Response({'error': 'Oturum zaman aşımına uğradı veya güvenlik anahtarı bulunamadı. Lütfen linki tekrar oluşturun.'}, status=400)
+        if not code_verifier or not user_id:
+            return Response({'error': 'Oturum zaman aşımı.'}, status=400)
 
         try:
             flow = get_google_flow()
-            
-            # 2. ADIM: Google'a "İşte giderken oluşturduğum anahtar tam olarak buydu" diyoruz.
             flow.code_verifier = code_verifier 
-            
-            # Ve token'ı sorunsuzca çekiyoruz!
             flow.fetch_token(code=code)
             credentials = flow.credentials
             
-            return Response({
-                'message': 'Harika! Google Takvim yetkisi başarıyla alındı.',
-                'token': credentials.token,
-            })
+            # Anahtarları Kullanıcının Veritabanına Kaydediyoruz
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            user = User.objects.get(id=user_id)
+
+            GoogleCalendarCredential.objects.update_or_create(
+                user=user,
+                defaults={
+                    'token': credentials.token,
+                    'refresh_token': credentials.refresh_token,
+                    'token_uri': credentials.token_uri,
+                    'client_id': credentials.client_id,
+                    'client_secret': credentials.client_secret,
+                    'scopes': ",".join(credentials.scopes),
+                }
+            )
+            
+            return Response({'message': 'Harika! Takvim başarıyla hesabınıza bağlandı.'})
             
         except Exception as e:
-            return Response({'error': f'Token alınırken hata: {str(e)}'}, status=500)
+            return Response({'error': str(e)}, status=500)
