@@ -497,7 +497,7 @@ def get_google_flow():
 
 class GoogleCalendarInitView(views.APIView):
     # Sadece giriş yapmış kullanıcılar takvim bağlayabilsin
-    permission_classes = [IsAuthenticated] 
+    permission_classes = [permissions.AllowAny] 
 
     def get(self, request):
         flow = get_google_flow()
@@ -513,49 +513,26 @@ class GoogleCalendarInitView(views.APIView):
         
         return Response({'auth_url': authorization_url})
 
-class GoogleCalendarCallbackView(views.APIView):
-    permission_classes = [permissions.AllowAny]
+class GoogleCalendarInitView(views.APIView):
+    # GEÇİCİ: Giriş şartını kaldırıyoruz ki tarayıcıdan direkt tıklayabilelim
+    permission_classes = [permissions.AllowAny] 
 
     def get(self, request):
-        code = request.GET.get('code')
-        error = request.GET.get('error')
-
-        if error or not code:
-            return Response({'error': 'Yetkilendirme hatası.'}, status=400)
-
-        code_verifier = request.session.get('code_verifier')
-        user_id = request.session.get('calendar_user_id') # Hangi kullanıcıydı?
-
-        if not code_verifier or not user_id:
-            return Response({'error': 'Oturum zaman aşımı.'}, status=400)
-
-        try:
-            flow = get_google_flow()
-            flow.code_verifier = code_verifier 
-            flow.fetch_token(code=code)
-            credentials = flow.credentials
-            
-            # Anahtarları Kullanıcının Veritabanına Kaydediyoruz
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            user = User.objects.get(id=user_id)
-
-            GoogleCalendarCredential.objects.update_or_create(
-                user=user,
-                defaults={
-                    'token': credentials.token,
-                    'refresh_token': credentials.refresh_token,
-                    'token_uri': credentials.token_uri,
-                    'client_id': credentials.client_id,
-                    'client_secret': credentials.client_secret,
-                    'scopes': ",".join(credentials.scopes),
-                }
-            )
-            
-            return Response({'message': 'Harika! Takvim başarıyla hesabınıza bağlandı.'})
-            
-        except Exception as e:
-            return Response({'error': str(e)}, status=500)
+        flow = get_google_flow()
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            prompt='consent'
+        )
+        
+        # Session'a code_verifier'ı kaydediyoruz
+        request.session['code_verifier'] = flow.code_verifier
+        
+        # KRİTİK NOKTA: Senin admin ID'ni buraya sabitliyoruz.
+        # Bu sayede Google'dan dönen yetki doğrudan 30 ID'li (senin) hesaba yazılacak.
+        request.session['calendar_user_id'] = 30
+        
+        return redirect(authorization_url) # Yanıt yerine doğrudan Google'a yönlendirsin
 
 # --- 8. GOOGLE MEET VE DERS OLUŞTURMA ---
 
