@@ -496,8 +496,8 @@ def get_google_flow():
     return flow
 
 class GoogleCalendarInitView(views.APIView):
-    # GEÇİCİ: Giriş şartını kaldırıyoruz ki tarayıcıdan direkt tıklayabilelim
-    permission_classes = [permissions.AllowAny] 
+    # GÜVENLİK DÜZELTMESİ: Artık sadece giriş yapanlar takvim bağlayabilir!
+    permission_classes = [permissions.IsAuthenticated] 
 
     def get(self, request):
         flow = get_google_flow()
@@ -509,14 +509,15 @@ class GoogleCalendarInitView(views.APIView):
         
         request.session['code_verifier'] = flow.code_verifier
         
-        # KRİTİK NOKTA: Senin admin ID'ni (30) buraya sabitliyoruz.
-        request.session['calendar_user_id'] = 30
+        # GÜVENLİK DÜZELTMESİ: "30" sabitini sildik. Artık kim giriş yaptıysa onun ID'sini alacak!
+        request.session['calendar_user_id'] = request.user.id
         
         return redirect(authorization_url)
 
 
 class GoogleCalendarCallbackView(views.APIView):
-    # SENİN GÖNDERDİĞİN VE AYNEN KALMASI GEREKEN KOD
+    # Callback tarafı Google'dan dönüşü karşıladığı için AllowAny kalabilir, 
+    # güvenlik kontrolünü içerideki session (oturum) üzerinden zaten yapıyoruz.
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
@@ -527,7 +528,7 @@ class GoogleCalendarCallbackView(views.APIView):
             return Response({'error': 'Yetkilendirme hatası.'}, status=400)
 
         code_verifier = request.session.get('code_verifier')
-        user_id = request.session.get('calendar_user_id') # Hangi kullanıcıydı? (Üstten 30 gelecek)
+        user_id = request.session.get('calendar_user_id') 
 
         if not code_verifier or not user_id:
             return Response({'error': 'Oturum zaman aşımı.'}, status=400)
@@ -538,7 +539,6 @@ class GoogleCalendarCallbackView(views.APIView):
             flow.fetch_token(code=code)
             credentials = flow.credentials
             
-            # Anahtarları Kullanıcının Veritabanına Kaydediyoruz
             from django.contrib.auth import get_user_model
             User = get_user_model()
             user = User.objects.get(id=user_id)
@@ -560,19 +560,21 @@ class GoogleCalendarCallbackView(views.APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=500)
 
+
 # --- 8. GOOGLE MEET VE DERS OLUŞTURMA ---
 
 class CreateLessonEventView(views.APIView):
-    permission_classes = [IsAuthenticated]
+    # GÜVENLİK DÜZELTMESİ: Sadece giriş yapmış kullanıcılar Meet linki üretebilir!
+    permission_classes = [permissions.IsAuthenticated]
 
+    # GÜVENLİK DÜZELTMESİ: GET yerine POST'a geri döndük. (Frontend'den güvenli istek atılacak)
     def post(self, request):
+        # GÜVENLİK DÜZELTMESİ: İstek atan kişinin kendisini buluyoruz
         user = request.user
         
         try:
-            # 1. Kullanıcının veritabanındaki Google anahtarlarını alıyoruz
             creds_data = user.calendar_credential
             
-            # 2. Google'ın anlayacağı 'Credentials' nesnesini hazırlıyoruz
             credentials = Credentials(
                 token=creds_data.token,
                 refresh_token=creds_data.refresh_token,
@@ -582,36 +584,31 @@ class CreateLessonEventView(views.APIView):
                 scopes=creds_data.scopes.split(',')
             )
 
-            # 3. Google Takvim API'sine bağlanıyoruz
             service = build('calendar', 'v3', credentials=credentials)
 
-            # 4. Takvime eklenecek "Ders" detayları
-            # İleride bu tarih ve saatleri React'ten (request.data'dan) alacağız
             event_details = {
                 'summary': 'E-Teacher Canlı Etüt',
                 'description': 'E-Teacher platformu üzerinden otomatik oluşturulmuş ders.',
                 'start': {
-                    'dateTime': '2026-04-10T10:00:00+03:00', # Örnek Tarih
+                    'dateTime': '2026-04-10T10:00:00+03:00', 
                     'timeZone': 'Europe/Istanbul',
                 },
                 'end': {
-                    'dateTime': '2026-04-10T11:00:00+03:00', # 1 Saatlik Ders
+                    'dateTime': '2026-04-10T11:00:00+03:00',
                     'timeZone': 'Europe/Istanbul',
                 },
-                # İŞTE SİHİRLİ KISIM: Otomatik Google Meet Linki Üretme
                 'conferenceData': {
                     'createRequest': {
-                        'requestId': str(uuid.uuid4()), # Çakışmayı önlemek için benzersiz ID
+                        'requestId': str(uuid.uuid4()), 
                         'conferenceSolutionKey': {'type': 'hangoutsMeet'}
                     }
                 }
             }
 
-            # 5. Etkinliği Google'a fırlatıyoruz!
             event = service.events().insert(
                 calendarId='primary',
                 body=event_details,
-                conferenceDataVersion=1 # Bu ayar Meet linki üretilmesi için ŞARTTIR
+                conferenceDataVersion=1 
             ).execute()
 
             return Response({
@@ -623,25 +620,6 @@ class CreateLessonEventView(views.APIView):
         except GoogleCalendarCredential.DoesNotExist:
             return Response({'error': 'Takvim bağlı değil. Lütfen önce Google Takviminizi bağlayın.'}, status=400)
         except Exception as e:
-            return Response({'error': f'Takvim etkinliği oluşturulamadı: {str(e)}'}, status=500)        
-        
-# --- ADMİN VE VERİTABANI SİHİRBAZI ---
-class CreateAdminView(views.APIView):
-    permission_classes = [permissions.AllowAny]
+            return Response({'error': f'Takvim etkinliği oluşturulamadı: {str(e)}'}, status=500)
 
-    def get(self, request):
-        from django.core.management import call_command
-        try:
-            # 1. ADIM: Veritabanını zorla güncelle
-            call_command('migrate', interactive=False)
-            
-            # 2. ADIM: Admini oluştur
-            from django.contrib.auth.models import User
-            if not User.objects.filter(username='bunyamin').exists():
-                User.objects.create_superuser('bunyamin', 'admin@example.com', 'Eteacher2026!')
-                return Response({'message': 'Müjde! Veritabanı ve Admin hazır.'})
-            
-            return Response({'message': 'Sistem zaten güncel.'})
-            
-        except Exception as e:
-            return Response({'error': str(e)}, status=500)        
+# DİKKAT: CreateAdminView SINIFINI TAMAMEN SİLDİK! 
