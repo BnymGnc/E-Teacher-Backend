@@ -13,6 +13,7 @@ from django.views.decorators.csrf import csrf_exempt   # EKLENEN SATIR
 from google_auth_oauthlib.flow import Flow
 from django.shortcuts import redirect
 
+
 # --- 1. KULLANICI PROFİLİ VE KOTA (Görüntüleme / Güncelleme) ---
 class UserProfileView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -372,6 +373,7 @@ class APIFileSummaryView(views.APIView):
             return Response({'error': str(e)}, status=500)
 
 
+
 # --- 7. GOOGLE TAKVİM ENTEGRASYONU ---
 
 def get_google_flow():
@@ -385,15 +387,11 @@ def get_google_flow():
         }
     }
     
-    # Parantezi burada kapatıyoruz:
     flow = Flow.from_client_config(
         client_config,
         scopes=['https://www.googleapis.com/auth/calendar.events'],
         redirect_uri="https://e-teacher.onrender.com/api/google/callback/"
     )
-    
-    # code_verifier satırı burada, parantezin dışında olmalı:
-    flow.code_verifier = None
     
     return flow
 
@@ -402,14 +400,21 @@ class GoogleCalendarInitView(views.APIView):
 
     def get(self, request):
         flow = get_google_flow()
+        
+        # Google'a gitmeden önce linki oluşturuyoruz.
+        # Bu işlem sırasında flow nesnesi güvenliğimiz için otomatik bir "code_verifier" üretir.
         authorization_url, state = flow.authorization_url(
             access_type='offline',
             include_granted_scopes='true',
             prompt='consent'
         )
+        
+        # KRİTİK ADIM: Üretilen bu şifreyi kullanıcının oturumuna (session) kaydediyoruz.
+        # Böylece Google'dan geri döndüğünde bu anahtarı çekip kullanabileceğiz.
+        request.session['code_verifier'] = flow.code_verifier
+        
         return Response({'auth_url': authorization_url})
 
-# EKSİK OLAN VE EKLENEN KISIM:
 class GoogleCalendarCallbackView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -423,12 +428,20 @@ class GoogleCalendarCallbackView(views.APIView):
         if not code:
             return Response({'error': 'Yetki kodu bulunamadı.'}, status=400)
 
+        # 1. ADIM: Session'a kaydettiğimiz o gizli anahtarı geri çağırıyoruz.
+        code_verifier = request.session.get('code_verifier')
+
+        # Eğer oturum silinmişse veya anahtar yoksa kullanıcıyı uyarıyoruz.
+        if not code_verifier:
+            return Response({'error': 'Oturum zaman aşımına uğradı veya güvenlik anahtarı bulunamadı. Lütfen linki tekrar oluşturun.'}, status=400)
+
         try:
             flow = get_google_flow()
             
-            # BURASI KRİTİK: fetch_token'dan hemen ÖNCE code_verifier'ı tekrar sıfırlıyoruz
-            flow.code_verifier = None 
+            # 2. ADIM: Google'a "İşte giderken oluşturduğum anahtar tam olarak buydu" diyoruz.
+            flow.code_verifier = code_verifier 
             
+            # Ve token'ı sorunsuzca çekiyoruz!
             flow.fetch_token(code=code)
             credentials = flow.credentials
             
