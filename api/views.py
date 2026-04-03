@@ -512,7 +512,7 @@ class GoogleCalendarInitView(views.APIView):
         # GÜVENLİK DÜZELTMESİ: "30" sabitini sildik. Artık kim giriş yaptıysa onun ID'sini alacak!
         request.session['calendar_user_id'] = request.user.id
         
-        return redirect(authorization_url)
+        return Response({'auth_url': authorization_url})
 
 
 class GoogleCalendarCallbackView(views.APIView):
