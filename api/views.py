@@ -621,3 +621,24 @@ class CreateLessonEventView(views.APIView):
             return Response({'error': 'Takvim bağlı değil. Lütfen önce Google Takviminizi bağlayın.'}, status=400)
         except Exception as e:
             return Response({'error': f'Takvim etkinliği oluşturulamadı: {str(e)}'}, status=500)        
+        
+# --- ADMİN VE VERİTABANI SİHİRBAZI ---
+class CreateAdminView(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        from django.core.management import call_command
+        try:
+            # 1. ADIM: Veritabanını zorla güncelle
+            call_command('migrate', interactive=False)
+            
+            # 2. ADIM: Admini oluştur
+            from django.contrib.auth.models import User
+            if not User.objects.filter(username='bunyamin').exists():
+                User.objects.create_superuser('bunyamin', 'admin@example.com', 'Eteacher2026!')
+                return Response({'message': 'Müjde! Veritabanı ve Admin hazır.'})
+            
+            return Response({'message': 'Sistem zaten güncel.'})
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)        
