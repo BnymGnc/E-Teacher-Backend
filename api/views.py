@@ -385,13 +385,16 @@ def get_google_flow():
         }
     }
     
-    # DÜZELTME BURADA: Flow nesnesini oluştururken redirect_uri'yi de içeri veriyoruz.
+    # Parantezi burada kapatıyoruz:
     flow = Flow.from_client_config(
         client_config,
         scopes=['https://www.googleapis.com/auth/calendar.events'],
-        # BU SATIRI EKLEDİK:
         redirect_uri="https://e-teacher.onrender.com/api/google/callback/"
     )
+    
+    # code_verifier satırı burada, parantezin dışında olmalı:
+    flow.code_verifier = None
+    
     return flow
 
 class GoogleCalendarInitView(views.APIView):
