@@ -18,6 +18,7 @@ from rest_framework.permissions import IsAdminUser
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 import uuid
+from django.core.cache import cache
 
 # --- ADMİN KOTA VE KULLANICI YÖNETİMİ ---
 
@@ -496,7 +497,6 @@ def get_google_flow():
     return flow
 
 class GoogleCalendarInitView(views.APIView):
-    # GÜVENLİK DÜZELTMESİ: Artık sadece giriş yapanlar takvim bağlayabilir!
     permission_classes = [permissions.IsAuthenticated] 
 
     def get(self, request):
@@ -507,31 +507,35 @@ class GoogleCalendarInitView(views.APIView):
             prompt='consent'
         )
         
-        request.session['code_verifier'] = flow.code_verifier
-        
-        # GÜVENLİK DÜZELTMESİ: "30" sabitini sildik. Artık kim giriş yaptıysa onun ID'sini alacak!
-        request.session['calendar_user_id'] = request.user.id
+        # B PLANI: Çerez (Session) yerine doğrudan sunucu belleğine kaydediyoruz!
+        # Anahtar olarak Google'ın bize kaybetmeden geri getireceği 'state' kodunu kullanıyoruz.
+        cache.set(state, {
+            'code_verifier': flow.code_verifier,
+            'user_id': request.user.id
+        }, timeout=600) # 10 dakika boyunca sunucuda güvende kalacak
         
         return Response({'auth_url': authorization_url})
 
 
 class GoogleCalendarCallbackView(views.APIView):
-    # Callback tarafı Google'dan dönüşü karşıladığı için AllowAny kalabilir, 
-    # güvenlik kontrolünü içerideki session (oturum) üzerinden zaten yapıyoruz.
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
         code = request.GET.get('code')
+        state = request.GET.get('state') # Google'ın getirdiği bilet
         error = request.GET.get('error')
 
-        if error or not code:
+        if error or not code or not state:
             return Response({'error': 'Yetkilendirme hatası.'}, status=400)
 
-        code_verifier = request.session.get('code_verifier')
-        user_id = request.session.get('calendar_user_id') 
+        # B PLANI: Tarayıcıya sormuyoruz, bileti verip sunucumuzdan (Cache) şifreyi alıyoruz!
+        saved_data = cache.get(state)
 
-        if not code_verifier or not user_id:
+        if not saved_data:
             return Response({'error': 'Oturum zaman aşımı.'}, status=400)
+
+        code_verifier = saved_data.get('code_verifier')
+        user_id = saved_data.get('user_id')
 
         try:
             flow = get_google_flow()
@@ -555,12 +559,14 @@ class GoogleCalendarCallbackView(views.APIView):
                 }
             )
             
+            # İşimiz bitince güvenliği sağlamak için şifreyi sunucudan siliyoruz
+            cache.delete(state)
+            
             return Response({'message': 'Harika! Takvim başarıyla hesabınıza bağlandı.'})
             
         except Exception as e:
             return Response({'error': str(e)}, status=500)
-
-
+        
 # --- 8. GOOGLE MEET VE DERS OLUŞTURMA ---
 
 class CreateLessonEventView(views.APIView):
