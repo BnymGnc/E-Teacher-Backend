@@ -568,15 +568,14 @@ class GoogleCalendarCallbackView(views.APIView):
             return Response({'error': str(e)}, status=500)
         
 # --- 8. GOOGLE MEET VE DERS OLUŞTURMA ---
-# 
-# class CreateLessonEventView(views.APIView):
+class CreateLessonEventView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         user = request.user
         
-        # 1. Frontend'den gelen dinamik verileri yakalıyoruz
-        # Örnek format: '2026-04-10T14:30'
+        # 1. Frontend'den gelen ders adını alıyoruz (Senin "Math101" yazdığın yer burası)
+        # Kullanıcı bir şey yazmazsa varsayılan olarak 'E-Teacher Canlı Etüt' atanır.
         summary = request.data.get('summary', 'E-Teacher Canlı Etüt')
         description = request.data.get('description', 'E-Teacher platformu üzerinden otomatik oluşturulmuş ders.')
         start_time_raw = request.data.get('start_time')
@@ -604,9 +603,9 @@ class GoogleCalendarCallbackView(views.APIView):
 
             service = build('calendar', 'v3', credentials=credentials)
 
-            # Google Calendar için zaman formatını düzenleme (+03:00 Türkiye saat dilimi)
+            # 2. Google Calendar için etkinlik detayları
             event_details = {
-                'summary': summary,
+                'summary': summary,  # İŞTE BURASI! Google Meet odasının başlığı doğrudan bu olacak.
                 'description': description,
                 'start': {
                     'dateTime': f"{start_time_raw}:00+03:00", 
@@ -634,11 +633,12 @@ class GoogleCalendarCallbackView(views.APIView):
                 conferenceDataVersion=1 
             ).execute()
 
+            # 3. İşlem başarılıysa Frontend'e dönecek veriler
             return Response({
                 'message': 'Ders başarıyla planlandı!',
                 'meet_link': event.get('hangoutLink'),
                 'event_link': event.get('htmlLink'),
-                'summary': event.get('summary'),
+                'summary': event.get('summary'), # React'e dersin adını teyit için geri yolluyoruz
                 'is_recurring': is_recurring
             })
 
