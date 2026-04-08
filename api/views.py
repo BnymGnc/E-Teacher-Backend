@@ -568,16 +568,28 @@ class GoogleCalendarCallbackView(views.APIView):
             return Response({'error': str(e)}, status=500)
         
 # --- 8. GOOGLE MEET VE DERS OLUŞTURMA ---
-
-class CreateLessonEventView(views.APIView):
-    # GÜVENLİK DÜZELTMESİ: Sadece giriş yapmış kullanıcılar Meet linki üretebilir!
+# 
+# class CreateLessonEventView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    # GÜVENLİK DÜZELTMESİ: GET yerine POST'a geri döndük. (Frontend'den güvenli istek atılacak)
     def post(self, request):
-        # GÜVENLİK DÜZELTMESİ: İstek atan kişinin kendisini buluyoruz
         user = request.user
         
+        # 1. Frontend'den gelen dinamik verileri yakalıyoruz
+        # Örnek format: '2026-04-10T14:30'
+        summary = request.data.get('summary', 'E-Teacher Canlı Etüt')
+        description = request.data.get('description', 'E-Teacher platformu üzerinden otomatik oluşturulmuş ders.')
+        start_time_raw = request.data.get('start_time')
+        end_time_raw = request.data.get('end_time')
+        is_recurring = request.data.get('is_recurring', False)
+
+        # Eksik veri kontrolü
+        if not start_time_raw or not end_time_raw:
+            return Response(
+                {'error': 'Başlangıç ve bitiş zamanı (start_time, end_time) zorunludur.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
             creds_data = user.calendar_credential
             
@@ -592,15 +604,16 @@ class CreateLessonEventView(views.APIView):
 
             service = build('calendar', 'v3', credentials=credentials)
 
+            # Google Calendar için zaman formatını düzenleme (+03:00 Türkiye saat dilimi)
             event_details = {
-                'summary': 'E-Teacher Canlı Etüt',
-                'description': 'E-Teacher platformu üzerinden otomatik oluşturulmuş ders.',
+                'summary': summary,
+                'description': description,
                 'start': {
-                    'dateTime': '2026-04-10T10:00:00+03:00', 
+                    'dateTime': f"{start_time_raw}:00+03:00", 
                     'timeZone': 'Europe/Istanbul',
                 },
                 'end': {
-                    'dateTime': '2026-04-10T11:00:00+03:00',
+                    'dateTime': f"{end_time_raw}:00+03:00",
                     'timeZone': 'Europe/Istanbul',
                 },
                 'conferenceData': {
@@ -611,6 +624,10 @@ class CreateLessonEventView(views.APIView):
                 }
             }
 
+            # Haftalık Tekrar (RRULE) özelliği
+            if is_recurring:
+                event_details['recurrence'] = ['RRULE:FREQ=WEEKLY']
+
             event = service.events().insert(
                 calendarId='primary',
                 body=event_details,
@@ -618,14 +635,15 @@ class CreateLessonEventView(views.APIView):
             ).execute()
 
             return Response({
-                'message': 'Harika! Ders takvime başarıyla eklendi!',
+                'message': 'Ders başarıyla planlandı!',
                 'meet_link': event.get('hangoutLink'),
-                'event_link': event.get('htmlLink')
+                'event_link': event.get('htmlLink'),
+                'summary': event.get('summary'),
+                'is_recurring': is_recurring
             })
 
         except GoogleCalendarCredential.DoesNotExist:
-            return Response({'error': 'Takvim bağlı değil. Lütfen önce Google Takviminizi bağlayın.'}, status=400)
+            return Response({'error': 'Takvim bağlı değil. Önce profilinizden takvimi bağlayın.'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({'error': f'Takvim etkinliği oluşturulamadı: {str(e)}'}, status=500)
-
+            return Response({'error': f'Google API Hatası: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 # DİKKAT: CreateAdminView SINIFINI TAMAMEN SİLDİK! 
