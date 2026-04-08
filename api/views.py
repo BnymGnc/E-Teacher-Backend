@@ -581,7 +581,7 @@ class CreateLessonEventView(views.APIView):
         start_time_raw = request.data.get('start_time')
         end_time_raw = request.data.get('end_time')
         is_recurring = request.data.get('is_recurring', False)
-
+        
         # Eksik veri kontrolü
         if not start_time_raw or not end_time_raw:
             return Response(
