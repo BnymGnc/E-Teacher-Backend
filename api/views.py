@@ -5,12 +5,12 @@ import re
 from rest_framework import permissions, status, views
 from rest_framework.response import Response
 from django.contrib.auth.models import User
-from .models import UserActivity, UserProfile
+from .models import UserActivity, UserProfile, Lesson
 import fitz  # PyMuPDF (PDF okumak için)
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.utils.decorators import method_decorator   # EKLENEN SATIR
 from django.views.decorators.csrf import csrf_exempt   # EKLENEN SATIR
-from google_auth_oauthlib.flow import Flow
+from google_auth_oauthlib.flow import Flow 
 from django.shortcuts import redirect
 from rest_framework.permissions import IsAuthenticated
 from .models import GoogleCalendarCredential
@@ -19,6 +19,12 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 import uuid
 from django.core.cache import cache
+import uuid
+from rest_framework import views, permissions, status
+from rest_framework.response import Response
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from .models import GoogleCalendarCredential, Lesson  # DİKKAT: Lesson buraya eklendi!
 
 # --- ADMİN KOTA VE KULLANICI YÖNETİMİ ---
 
@@ -574,22 +580,18 @@ class CreateLessonEventView(views.APIView):
     def post(self, request):
         user = request.user
         
-        # 1. Frontend'den gelen ders adını alıyoruz (Senin "Math101" yazdığın yer burası)
-        # Kullanıcı bir şey yazmazsa varsayılan olarak 'E-Teacher Canlı Etüt' atanır.
+        # Frontend'den gelen veriler
         summary = request.data.get('summary', 'E-Teacher Canlı Etüt')
         description = request.data.get('description', 'E-Teacher platformu üzerinden otomatik oluşturulmuş ders.')
         start_time_raw = request.data.get('start_time')
         end_time_raw = request.data.get('end_time')
         is_recurring = request.data.get('is_recurring', False)
-        
-        # Eksik veri kontrolü
+
         if not start_time_raw or not end_time_raw:
-            return Response(
-                {'error': 'Başlangıç ve bitiş zamanı (start_time, end_time) zorunludur.'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': 'Başlangıç ve bitiş zamanı zorunludur.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
+            # --- 1. AŞAMA: GOOGLE API İLE TAKVİM VE MEET OLUŞTURMA ---
             creds_data = user.calendar_credential
             
             credentials = Credentials(
@@ -603,47 +605,48 @@ class CreateLessonEventView(views.APIView):
 
             service = build('calendar', 'v3', credentials=credentials)
 
-            # 2. Google Calendar için etkinlik detayları
             event_details = {
-                'summary': summary,  # İŞTE BURASI! Google Meet odasının başlığı doğrudan bu olacak.
+                'summary': summary,
                 'description': description,
-                'start': {
-                    'dateTime': f"{start_time_raw}:00+03:00", 
-                    'timeZone': 'Europe/Istanbul',
-                },
-                'end': {
-                    'dateTime': f"{end_time_raw}:00+03:00",
-                    'timeZone': 'Europe/Istanbul',
-                },
+                'start': {'dateTime': f"{start_time_raw}:00+03:00", 'timeZone': 'Europe/Istanbul'},
+                'end': {'dateTime': f"{end_time_raw}:00+03:00", 'timeZone': 'Europe/Istanbul'},
                 'conferenceData': {
-                    'createRequest': {
-                        'requestId': str(uuid.uuid4()), 
-                        'conferenceSolutionKey': {'type': 'hangoutsMeet'}
-                    }
+                    'createRequest': {'requestId': str(uuid.uuid4()), 'conferenceSolutionKey': {'type': 'hangoutsMeet'}}
                 }
             }
 
-            # Haftalık Tekrar (RRULE) özelliği
             if is_recurring:
                 event_details['recurrence'] = ['RRULE:FREQ=WEEKLY']
 
             event = service.events().insert(
-                calendarId='primary',
-                body=event_details,
-                conferenceDataVersion=1 
+                calendarId='primary', 
+                body=event_details, 
+                conferenceDataVersion=1
             ).execute()
 
-            # 3. İşlem başarılıysa Frontend'e dönecek veriler
+            # --- 2. AŞAMA: ALINAN BİLGİLERİ KENDİ VERİTABANIMIZA (NEON) KAYDETME ---
+            new_lesson = Lesson.objects.create(
+                teacher=user,
+                title=summary,
+                description=description,
+                start_time=f"{start_time_raw}:00+03:00", # Django saati net anlasın diye formatlandı
+                end_time=f"{end_time_raw}:00+03:00",
+                google_event_id=event.get('id'),
+                meet_link=event.get('hangoutLink'),
+                is_recurring=is_recurring
+            )
+
+            # İşlem başarılıysa Frontend'e dönecek yanıt
             return Response({
-                'message': 'Ders başarıyla planlandı!',
-                'meet_link': event.get('hangoutLink'),
+                'message': 'Ders başarıyla planlandı ve veritabanına kaydedildi!',
+                'meet_link': new_lesson.meet_link,
                 'event_link': event.get('htmlLink'),
-                'summary': event.get('summary'), # React'e dersin adını teyit için geri yolluyoruz
-                'is_recurring': is_recurring
+                'summary': new_lesson.title,
             })
 
         except GoogleCalendarCredential.DoesNotExist:
             return Response({'error': 'Takvim bağlı değil. Önce profilinizden takvimi bağlayın.'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({'error': f'Google API Hatası: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': f'Sistem Hatası: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 # DİKKAT: CreateAdminView SINIFINI TAMAMEN SİLDİK! 

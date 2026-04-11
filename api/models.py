@@ -1,6 +1,10 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.conf import settings
+from django.db import models
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 # --- 1. KULLANICI PROFİLİ VE KOTA SİSTEMİ ---
 class UserProfile(models.Model):
@@ -34,3 +38,25 @@ class GoogleCalendarCredential(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - Google Calendar"    
+    
+class Lesson(models.Model):
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name='lessons_given')
+    title = models.CharField(max_length=255) # Örn: Quiz Solution
+    description = models.TextField(blank=True, null=True)
+    
+    # Zaman Bilgileri
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    
+    # Google Verileri (Kritik Alan)
+    google_event_id = models.CharField(max_length=255, unique=True)
+    meet_link = models.URLField(max_length=500)
+    
+    # İlişkiler
+    is_recurring = models.BooleanField(default=False)
+    students = models.ManyToManyField(User, related_name='lessons_taken', blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.title} - {self.teacher.username}"    
