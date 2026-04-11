@@ -1,31 +1,31 @@
+# 1. Standart Python Kütüphaneleri
 import os
-import requests
 import json
 import re
+import uuid
+
+# 2. Üçüncü Parti Kütüphaneler (Google API, FitZ vb.)
+import requests
+import fitz  # PyMuPDF (PDF okumak için)
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+
+# 3. Django Çekirdek Kütüphaneleri
+from django.contrib.auth.models import User
+from django.core.cache import cache
+from django.shortcuts import redirect
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+
+# 4. Django REST Framework (DRF) Kütüphaneleri
 from rest_framework import permissions, status, views
 from rest_framework.response import Response
-from django.contrib.auth.models import User
-from .models import UserActivity, UserProfile, Lesson
-import fitz  # PyMuPDF (PDF okumak için)
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.utils.decorators import method_decorator   # EKLENEN SATIR
-from django.views.decorators.csrf import csrf_exempt   # EKLENEN SATIR
-from google_auth_oauthlib.flow import Flow 
-from django.shortcuts import redirect
-from rest_framework.permissions import IsAuthenticated
-from .models import GoogleCalendarCredential
-from rest_framework.permissions import IsAdminUser
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
-import uuid
-from django.core.cache import cache
-import uuid
-from rest_framework import views, permissions, status
-from rest_framework.response import Response
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-from .models import GoogleCalendarCredential, Lesson  # DİKKAT: Lesson buraya eklendi!
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
+# 5. E-Teacher Projesi Kendi Modellerimiz
+from .models import UserActivity, UserProfile, Lesson, GoogleCalendarCredential
 # --- ADMİN KOTA VE KULLANICI YÖNETİMİ ---
 
 class AdminUserListView(views.APIView):
