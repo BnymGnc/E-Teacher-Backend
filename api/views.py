@@ -26,6 +26,10 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
 # 5. E-Teacher Projesi Kendi Modellerimiz
 from .models import UserActivity, UserProfile, Lesson, GoogleCalendarCredential
+
+from rest_framework import generics
+from .serializers import LessonSerializer # Yukarıda oluşturduğumuz serializer
+
 # --- ADMİN KOTA VE KULLANICI YÖNETİMİ ---
 
 class AdminUserListView(views.APIView):
@@ -649,4 +653,12 @@ class CreateLessonEventView(views.APIView):
         except Exception as e:
             return Response({'error': f'Sistem Hatası: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class LessonListView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = LessonSerializer
+
+    def get_queryset(self):
+        # Şimdilik sistemdeki tüm dersleri tarihe göre sıralayıp getiriyoruz.
+        # İleride buraya "Sadece kullanıcının (öğrencinin) kayıtlı olduğu dersleri getir" filtresi ekleyeceğiz.
+        return Lesson.objects.all().order_by('start_time')
 # DİKKAT: CreateAdminView SINIFINI TAMAMEN SİLDİK! 

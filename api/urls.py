@@ -33,5 +33,7 @@ urlpatterns = [
     path('admin/manage-users/', views.AdminUserManagementView.as_view(), name='admin-manage-users'),
 
     path('calendar/create-lesson/', views.CreateLessonEventView.as_view(), name='create-lesson'),
+    
+    path('lessons/', LessonListView.as_view(), name='lesson-list'),
 
 ]
