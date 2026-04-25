@@ -4,7 +4,7 @@ Bu repo, E-Teacher platformunun tüm veritabanı, AI ve API süreçlerini yönet
 
 ## 🏗️ 1. Aşama: Temel Kurulum ve Auth (Hafta 1)
 - [x] Django projesinin başlatılması ve PostgreSQL (Neon DB) bağlantısı.
-- [x] Custom User modelinin oluşturulması (Öğrenci/Eğitmen ayrımı).
+- [ ] Custom User modelinin oluşturulması (Öğrenci/Eğitmen ayrımı).
 - [ ] JWT (SimpleJWT) entegrasyonu ile `/api/token/` endpointlerinin hazırlanması.
 - [ ] **Önemli:** CORS ayarlarının hem Web (Vercel) hem de Mobil adreslerine izin verecek şekilde yapılandırılması.
 
