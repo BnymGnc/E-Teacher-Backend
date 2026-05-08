@@ -92,7 +92,19 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- BİZİM REACT VE JWT AYARLARIMIZ ---
-CORS_ALLOW_ALL_ORIGINS = True 
+# --- BİZİM REACT VE JWT AYARLARIMIZ ---
+CORS_ALLOW_ALL_ORIGINS = False  # Herkese açık kapıyı kapatıyoruz
+CORS_ALLOW_CREDENTIALS = True   # Token ve Cookie geçişine izin veriyoruz
+
+# Sadece bizim projelerimizin Backend'e bağlanmasına izin ver
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Klasik React Web
+    "http://localhost:5173",  # Vite React Web
+    "http://localhost:8081",  # YENİ: Expo Mobil (Web Modu)
+    "http://127.0.0.1:8081",  # YENİ: Expo Mobil (Web Modu Alternatif IP)
+    # İleride Frontend'i Vercel'e yüklediğinde onun linkini de buraya ekleyeceksin:
+    # "https://e-teacher-frontend.vercel.app",
+]
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -110,15 +122,3 @@ SESSION_COOKIE_SAMESITE = 'None'
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_SECURE = True
-
-
-
-
-
-
-
-
-
-
-
-
