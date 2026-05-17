@@ -92,7 +92,6 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- BİZİM REACT VE JWT AYARLARIMIZ ---
-# --- BİZİM REACT VE JWT AYARLARIMIZ ---
 CORS_ALLOW_ALL_ORIGINS = False  # Herkese açık kapıyı kapatıyoruz
 CORS_ALLOW_CREDENTIALS = True   # Token ve Cookie geçişine izin veriyoruz
 
@@ -100,10 +99,14 @@ CORS_ALLOW_CREDENTIALS = True   # Token ve Cookie geçişine izin veriyoruz
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Klasik React Web
     "http://localhost:5173",  # Vite React Web
-    "http://localhost:8081",  # YENİ: Expo Mobil (Web Modu)
-    "http://127.0.0.1:8081",  # YENİ: Expo Mobil (Web Modu Alternatif IP)
-    # İleride Frontend'i Vercel'e yüklediğinde onun linkini de buraya ekleyeceksin:
-    # "https://e-teacher-frontend.vercel.app",
+    "http://localhost:8081",  # Expo Mobil (Web Modu)
+    "http://127.0.0.1:8081",  # Expo Mobil (Web Modu Alternatif IP)
+    "https://e-teacher-frontend.vercel.app", # VERCEL FRONTEND ADRESİ EKLENDİ (CORS Hatası Çözümü)
+]
+
+# CSRF (Güvenlik) hatalarını önlemek için Vercel adresini güvenilir ilan ediyoruz
+CSRF_TRUSTED_ORIGINS = [
+    "https://e-teacher-frontend.vercel.app",
 ]
 
 REST_FRAMEWORK = {
